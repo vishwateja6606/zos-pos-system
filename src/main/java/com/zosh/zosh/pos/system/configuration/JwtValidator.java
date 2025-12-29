@@ -26,13 +26,14 @@ public class JwtValidator extends OncePerRequestFilter {
     protected void doFilterInternal(
             HttpServletRequest request,
             HttpServletResponse response,
-            FilterChain filterChain) throws ServletException, IOException {
+            FilterChain filterChain)
+            throws ServletException, IOException {
 
-        String jwt = request.getHeader("Authorization");
+        String header = request.getHeader("Authorization");
 
-        if (jwt != null && jwt.startsWith("Bearer ")) {
+        if (header != null && header.startsWith("Bearer ")) {
 
-            jwt = jwt.substring(7);
+            String token = header.substring(7);
 
             try {
                 SecretKey key =
@@ -41,19 +42,29 @@ public class JwtValidator extends OncePerRequestFilter {
                 Claims claims = Jwts.parser()
                         .verifyWith(key)
                         .build()
-                        .parseSignedClaims(jwt)
+                        .parseSignedClaims(token)
                         .getPayload();
 
-                String email = String.valueOf(claims.get("email"));
-                String role = String.valueOf(claims.get("role"));
+                // ✅ EMAIL FROM SUBJECT
+                String email = claims.getSubject();
+
+                // ✅ AUTHORITIES FROM CLAIM
+                String authorities =
+                        claims.get("authorities", String.class);
 
                 List<GrantedAuthority> auths =
-                        AuthorityUtils.commaSeparatedStringToAuthorityList(role);
+                        AuthorityUtils.commaSeparatedStringToAuthorityList(authorities);
 
-                Authentication auth =
-                        new UsernamePasswordAuthenticationToken(email, null, auths);
+                Authentication authentication =
+                        new UsernamePasswordAuthenticationToken(
+                                email,   // 👈 principal
+                                null,
+                                auths
+                        );
 
-                SecurityContextHolder.getContext().setAuthentication(auth);
+                SecurityContextHolder
+                        .getContext()
+                        .setAuthentication(authentication);
 
             } catch (Exception e) {
                 SecurityContextHolder.clearContext();
